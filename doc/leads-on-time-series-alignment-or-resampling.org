@@ -1,0 +1,11 @@
+#+title: Leads On Time Series Alignment Or Resampling
+#+author: Yu (Aaron) Shen
+#+date: 2022-10-07
+
+Here are some leads:
+https://community.splunk.com/t5/Dashboards-Visualizations/How-to-assign-colors-to-values-in-a-chart/m-p/302990
+
+https://pandas.pydata.org/pandas-docs/stable/reference/api/pandas.merge_asof.html
+https://stackoverflow.com/questions/21201618/pandas-merge-match-the-nearest-time-stamp-the-series-of-timestamps
+
+https://stackoverflow.com/questions/52794869/pandas-align-irregular-time-series-with-different-frequencies

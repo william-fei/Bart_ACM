@@ -1,0 +1,37 @@
+# Direcotry Structure
+
+Here is the directory structure (copied from the output of tree command.)
+suitable for development with Jupyter Lab/Notebook, Python, and Jupytex
+
+#+begin_example
+|____config
+|____data
+|____doc
+|____README.md
+|____src
+| |____notebooks
+| |____scripts
+| | |____libs
+|____test
+#+end_example
+
+- config :: configurations required for the project
+- data   :: storage of data for the project
+- doc    :: put documents helpful for the project here
+- README.md :: Read it first to understand the project
+- test   :: Having test cases here is "kosher"!
+- src    :: the folder for the source code
+- notebooks :: in src, the notebooks developed with Jupyter Lab and Jupytext,
+  they are the dua-images of the python files in scripts folder
+- scripts :: the python files for the notebooks and libraries
+- libs    :: the folder for the python libraries
+
+Note, with [[https://github.com/mwouts/jupytext][Jupytext]], one can use python file to create and modify notebooks with
+Markdown syntax. It makes developing notebooks much effective and also more
+conducive for git version control.
+
+With Jupytex, the typical workflow is as follows
+1. Edit on the python file
+2. Reload the python file (Opened with notebook)
+3. Perform data exploration more convenient in notebook, save any edits
+4. Repeat

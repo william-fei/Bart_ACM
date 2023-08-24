@@ -1,0 +1,190 @@
+#+title: Ac Monitor High Level Design
+#+author: Yu (Aaron) Shen
+#+date: 2023-02-23
+
+* Introduction
+
+This is the (reverse engineered) high level design of ac-monitor project.
+
+In this document, all paths are relative to the root project directory.
+
+* Data Format
+
+Here are the information about the data, shown by example of their headers.
+** Raw temperature data
+
+As an example, here is the header of data/raw/indoor-temp-20220601-0912-ACELS_S50.csv.zip
+#+begin_example
+_time,Location,Temperature
+2022-06-01T00:07:01.000-0700,S50,77.1
+2022-06-01T00:22:01.000-0700,S50,76.7
+2022-06-01T00:37:01.000-0700,S50,77.3
+#+end_example
+
+Note, the design requires the above raw data are sorted in increasing date and
+time order.
+** Labeled time intervals
+
+As an example, here is the header of data/labeled/test_ys_new.csv.zip
+#+begin_example
+temp0,temp1,temp2,temp3,temp4,temp5,temp6,temp7,temp8,temp9,temp10,temp11,temp12,temp13,temp14,temp15,Location,Start,End,abnormality
+77.2,77.1,76.9,77.0,77.0,76.9,76.9,77.1,76.9,76.9,77.1,76.9,77.0,77.2,77.1,77.0,S50,2022-06-01 04:37:01-07:00,2022-06-01 08:22:01-07:00,0
+#+end_example
+* The naming convention of labeled samples
+The name should be a qualified base name:
+<base_name>-<label_target_value>-<timestamp>
+The name of the file for the labeled samples should have the following
+characteristics:
+- a base name :: identifying the labeling effort, such as who does, or special
+  motivations, etc.
+- a sufix of label target value :: normal and abnormal
+- timestamp :: the time at the time of saving to avoid collision. This makes the
+  generation of the unique file name independent of program's state.
+
+* Issues and improvement
+
+** Registered at GitHub
+*** Labeling by start time and offset, instead of fixed time interval
+
+For each location, currently, we use fixed intervals blindly perform labeling.
+Majority of the labeling are for normal data. It's not necessary and time
+consuming.
+
+A better alternative is to start labeling only at the time when there is about
+to have overheat incident, and extract the required number of temperatures (16).
+We may call the required number of temperatures offset.
+
+We can visually exam the temperature curve over time of a location, and visually
+identify when there is an incident of overheat, and instruct the labeling
+program to start labeling from there.
+
+We can also continue to label by shifting one timestamp later from the selected
+starting point until we observe normal sample time series.
+As this is the case, that we expect the neural network to observe continuously
+for the required number of temperature data points.
+
+*** When saving the labeled, the labeler should consider if the file to save to already have content, if it does, append semantic should be implemented, or implement renaming scheme to avoid over-writing
+
+Maybe, with number suffix to avoid overriding would be better, and easier.
+---
+To test if a file has content, we can check if the named file exists. If it
+exists, then consider it has content.
+
+For the semantic of appending, append without header.
+
+Be aware with append behavior, the already appended samples, should be cleared
+in the memory in the variable labeled, to avoid repeated append in the next
+append operation.
+
+*** Record labeled time series separately by abnormal and normal
+
+As we only need to use abnormal cases to train for abnormality detection, and
+use the normal ones for validation of no false positive, it's more cenvienient
+that we record the abnormal and normal separately, instead of separating them in
+the later stage.
+
+*** It takes long time to start label, whether the loading of the program can be optimized?
+
+*** Split the raw temperature data by location to reduce the time for loading and facilitae parallel labeling by multiple persons
+*** Assemble separate labled files into one
+
+By opending and concat as dataframe
+This may be a rather generic requirement
+*** save fig function not working, with the provided save_fig_path, it complains "Unable to save figure. Enter new directory path"
+With a correct path submitted, it went quiet, but still not performing the save
+operation. No saved figure found.
+
+** Unexpected saving when performing labeling of normal, and undoing the normal labeling, and unexpected quitting the labeling loop when undoing
+
+** The undo operation resulted in garbage saved file contents:
+#+begin_example
+> zcat data/labeled/test_ys_new-abnormal-2023-03-01-12-09-39.csv.zip                                       (ac-mointor)
+,temp0,temp1,temp2,temp3,temp4,temp5,temp6,temp7,temp8,temp9,temp10,temp11,temp12,temp13,temp14,temp15,Location,Start,End,abnormality,0
+temp0,,,,,,,,,,,,,,,,,,,,,77.1
+temp1,,,,,,,,,,,,,,,,,,,,,76.9
+temp2,,,,,,,,,,,,,,,,,,,,,77.0
+temp3,,,,,,,,,,,,,,,,,,,,,77.0
+temp4,,,,,,,,,,,,,,,,,,,,,76.9
+temp5,,,,,,,,,,,,,,,,,,,,,76.9
+temp6,,,,,,,,,,,,,,,,,,,,,77.1
+temp7,,,,,,,,,,,,,,,,,,,,,76.9
+temp8,,,,,,,,,,,,,,,,,,,,,76.9
+temp9,,,,,,,,,,,,,,,,,,,,,77.1
+temp10,,,,,,,,,,,,,,,,,,,,,76.9
+temp11,,,,,,,,,,,,,,,,,,,,,77.0
+temp12,,,,,,,,,,,,,,,,,,,,,77.2
+temp13,,,,,,,,,,,,,,,,,,,,,77.1
+temp14,,,,,,,,,,,,,,,,,,,,,77.0
+temp15,,,,,,,,,,,,,,,,,,,,,77.1
+Location,,,,,,,,,,,,,,,,,,,,,S50
+Start,,,,,,,,,,,,,,,,,,,,,2022-06-01 04:52:01-07:00
+End,,,,,,,,,,,,,,,,,,,,,2022-06-01 08:37:01-07:00
+abnormality,,,,,,,,,,,,,,,,,,,,,1
+#+end_example
+
+#+begin_example
+> zcat data/labeled/test_ys_new-abnormal-2023-03-01-12-06-38.csv.zip                                       (ac-mointor)
+,temp0,temp1,temp2,temp3,temp4,temp5,temp6,temp7,temp8,temp9,temp10,temp11,temp12,temp13,temp14,temp15,Location,Start,End,abnormality,0
+temp0,,,,,,,,,,,,,,,,,,,,,77.2
+temp1,,,,,,,,,,,,,,,,,,,,,77.1
+temp2,,,,,,,,,,,,,,,,,,,,,76.9
+temp3,,,,,,,,,,,,,,,,,,,,,77.0
+temp4,,,,,,,,,,,,,,,,,,,,,77.0
+temp5,,,,,,,,,,,,,,,,,,,,,76.9
+temp6,,,,,,,,,,,,,,,,,,,,,76.9
+temp7,,,,,,,,,,,,,,,,,,,,,77.1
+temp8,,,,,,,,,,,,,,,,,,,,,76.9
+temp9,,,,,,,,,,,,,,,,,,,,,76.9
+temp10,,,,,,,,,,,,,,,,,,,,,77.1
+temp11,,,,,,,,,,,,,,,,,,,,,76.9
+temp12,,,,,,,,,,,,,,,,,,,,,77.0
+temp13,,,,,,,,,,,,,,,,,,,,,77.2
+temp14,,,,,,,,,,,,,,,,,,,,,77.1
+temp15,,,,,,,,,,,,,,,,,,,,,77.0
+Location,,,,,,,,,,,,,,,,,,,,,S50
+Start,,,,,,,,,,,,,,,,,,,,,2022-06-01 04:37:01-07:00
+End,,,,,,,,,,,,,,,,,,,,,2022-06-01 08:22:01-07:00
+abnormality,,,,,,,,,,,,,,,,,,,,,1
+#+end_example
+
+when undoing from normal to abnormal.
+
+while the saving before undo (flipping) looks correct:
+#+begin_example
+> zcat data/labeled/test_ys_new-normal-2023-03-01-12-01-07.csv.zip                                         (ac-mointor)
+,temp0,temp1,temp2,temp3,temp4,temp5,temp6,temp7,temp8,temp9,temp10,temp11,temp12,temp13,temp14,temp15,Location,Start,End,abnormality
+0,77.2,77.1,76.9,77.0,77.0,76.9,76.9,77.1,76.9,76.9,77.1,76.9,77.0,77.2,77.1,77.0,S50,2022-06-01 04:37:01-07:00,2022-06-01 08:22:01-07:00,0
+[12:18:18] yshen@L-2JDM8S2 /home/yshen/dev/university-projects/ac-monitor
+> zcat data/labeled/test_ys_new-normal-2023-03-01-12-02-23.csv.zip                                         (ac-mointor)
+,temp0,temp1,temp2,temp3,temp4,temp5,temp6,temp7,temp8,temp9,temp10,temp11,temp12,temp13,temp14,temp15,Location,Start,End,abnormality
+0,77.2,77.1,76.9,77.0,77.0,76.9,76.9,77.1,76.9,76.9,77.1,76.9,77.0,77.2,77.1,77.0,S50,2022-06-01 04:37:01-07:00,2022-06-01 08:22:01-07:00,0
+[12:18:43] yshen@L-2JDM8S2 /home/yshen/dev/university-projects/ac-monitor
+> zcat data/labeled/test_ys_new-normal-2023-03-01-11-48-42.csv.zip                                         (ac-mointor)
+,temp0,temp1,temp2,temp3,temp4,temp5,temp6,temp7,temp8,temp9,temp10,temp11,temp12,temp13,temp14,temp15,Location,Start,End,abnormality
+0,77.2,77.1,76.9,77.0,77.0,76.9,76.9,77.1,76.9,76.9,77.1,76.9,77.0,77.2,77.1,77.0,S50,2022-06-01 04:37:01-07:00,2022-06-01 08:22:01-07:00,0
+0,77.1,76.9,77.0,77.0,76.9,76.9,77.1,76.9,76.9,77.1,76.9,77.0,77.2,77.1,77.0,77.1,S50,2022-06-01 04:52:01-07:00,2022-06-01 08:37:01-07:00,0
+[12:19:14] yshen@L-2JDM8S2 /home/yshen/dev/university-projects/ac-monitor
+> zcat data/labeled/test_ys_new-normal-2023-03-01-11-52-10.csv.zip                                         (ac-mointor)
+,temp0,temp1,temp2,temp3,temp4,temp5,temp6,temp7,temp8,temp9,temp10,temp11,temp12,temp13,temp14,temp15,Location,Start,End,abnormality
+0,77.2,77.1,76.9,77.0,77.0,76.9,76.9,77.1,76.9,76.9,77.1,76.9,77.0,77.2,77.1,77.0,S50,2022-06-01 04:37:01-07:00,2022-06-01 08:22:01-07:00,0
+[12:19:35] yshen@L-2JDM8S2 /home/yshen/dev/university-projects/ac-monitor
+> zcat data/labeled/test_ys_new-normal-2023-03-01-11-54-35.csv.zip                                         (ac-mointor)
+,temp0,temp1,temp2,temp3,temp4,temp5,temp6,temp7,temp8,temp9,temp10,temp11,temp12,temp13,temp14,temp15,Location,Start,End,abnormality
+0,77.2,77.1,76.9,77.0,77.0,76.9,76.9,77.1,76.9,76.9,77.1,76.9,77.0,77.2,77.1,77.0,S50,2022-06-01 04:37:01-07:00,2022-06-01 08:22:01-07:00,0
+0,77.1,76.9,77.0,77.0,76.9,76.9,77.1,76.9,76.9,77.1,76.9,77.0,77.2,77.1,77.0,77.1,S50,2022-06-01 04:52:01-07:00,2022-06-01 08:37:01-07:00,0
+#+end_example
+
+* Obsoleted
+
+** Time interval definitions
+(This was used in the older design. It's no longer needed.)
+As an example, here is the header of data/timewindows/timewindows_4H_rs2022.zip
+#+begin_example
+loc,start,end
+R50,2022-08-18 04:15:00-07:00,2022-08-18 08:15:00-07:00
+L18,2022-06-10 05:45:00-07:00,2022-06-10 09:45:00-07:00
+S40,2022-06-13 23:00:00-07:00,2022-06-14 03:00:00-07:00
+#+end_example
+
+Note, this interval definitions will be obsoleted when the mechanism of
+selecting time series segment by start time and offset is implemented.
